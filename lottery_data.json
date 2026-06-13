@@ -41,5 +41,25 @@
         "win_date": "2024-03-15"
       }
     }
+  },
+  "round_meta": {
+    "2024年第1期": {
+      "round_name": "2024年第1期",
+      "applicant_count": 5200,
+      "quota_count": 2,
+      "description": "2024年度首期小客车指标摇号"
+    },
+    "2024年第2期": {
+      "round_name": "2024年第2期",
+      "applicant_count": 6800,
+      "quota_count": 2,
+      "description": "新能源指标配置期"
+    },
+    "2024年第3期": {
+      "round_name": "2024年第3期",
+      "applicant_count": 8500,
+      "quota_count": 1,
+      "description": "普通小客车指标摇号"
+    }
   }
 }

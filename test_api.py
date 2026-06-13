@@ -532,21 +532,167 @@ def test_duplicate_flag():
     print("✅ 测试通过 - 跨期重复编码标记功能正常")
 
 
+def test_round_stats():
+    """测试中签率统计接口"""
+    print("\n" + "=" * 60)
+    print("测试15: 中签率统计 - 全部期数")
+    print("=" * 60)
+
+    response = requests.get(f"{BASE_URL}/api/round-stats")
+    data = response.json()
+
+    print(f"状态码: {response.status_code}")
+    print(f"请求成功: {data['success']}")
+    print(f"总期数: {data['summary']['total_rounds']}")
+    print(f"累计申请人数: {data['summary']['total_applicants']}")
+    print(f"累计指标数: {data['summary']['total_quota']}")
+    print(f"综合中签率: {data['summary']['overall_win_rate']['rate_percent']}%")
+    print(f"最难中签期: {data['trend']['hardest_round']['round_name'] if data['trend']['hardest_round'] else '-'}")
+    print(f"最易中签期: {data['trend']['easiest_round']['round_name'] if data['trend']['easiest_round'] else '-'}")
+
+    assert response.status_code == 200
+    assert data["success"] == True
+    assert data["summary"]["total_rounds"] >= 3
+    assert data["summary"]["total_applicants"] >= 20500
+    assert data["summary"]["total_quota"] >= 5
+    assert data["summary"]["overall_win_rate"]["rate_percent"] > 0
+    assert data["summary"]["overall_win_rate"]["applicant_quota_ratio"] != ""
+    assert len(data["rounds"]) >= 3
+    assert data["trend"]["hardest_round"] is not None
+    assert data["trend"]["easiest_round"] is not None
+
+    print("\n--- 验证各期中签率数据 ---")
+    for r in data["rounds"]:
+        print(f"  {r['round_name']}: 申请人数={r['applicant_count']}, "
+              f"指标数={r['quota_count']}, 中签率={r['win_rate']['rate_percent']}%")
+        assert r["applicant_count"] >= r["quota_count"]
+        assert r["win_rate"]["rate_percent"] >= 0
+        assert r["win_rate"]["one_in_n"] > 0
+
+    print("✅ 测试通过 - 全部期数统计正常")
+
+
+def test_round_stats_single():
+    """测试单期中签率统计"""
+    print("\n" + "=" * 60)
+    print("测试16: 中签率统计 - 单期查询")
+    print("=" * 60)
+
+    response = requests.get(f"{BASE_URL}/api/round-stats?round=2024年第1期")
+    data = response.json()
+
+    print(f"状态码: {response.status_code}")
+    print(f"期数: {data['round_name']}")
+    print(f"申请人数: {data['applicant_count']}")
+    print(f"指标数: {data['quota_count']}")
+    print(f"中签率: {data['win_rate']['rate_percent']}%")
+    print(f"中签比例: 1/{data['win_rate']['one_in_n']}")
+
+    assert response.status_code == 200
+    assert data["success"] == True
+    assert data["round_name"] == "2024年第1期"
+    assert data["applicant_count"] == 5200
+    assert data["quota_count"] == 2
+    assert data["win_rate"]["rate_percent"] > 0
+    assert data["win_rate"]["one_in_n"] == 2600
+
+    print("✅ 测试通过 - 单期统计正常")
+
+
+def test_round_meta_crud():
+    """测试期数元数据管理"""
+    print("\n" + "=" * 60)
+    print("测试17: 期数元数据管理")
+    print("=" * 60)
+
+    test_round = "2024年第10期"
+
+    print("\n--- 设置期数元数据 ---")
+    response = requests.post(
+        f"{BASE_URL}/api/round-meta",
+        json={
+            "round_name": test_round,
+            "applicant_count": 10000,
+            "quota_count": 5,
+            "description": "测试期"
+        }
+    )
+    data = response.json()
+
+    print(f"状态码: {response.status_code}")
+    print(f"响应: {data['message']}")
+
+    assert response.status_code == 200
+    assert data["success"] == True
+
+    print("\n--- 获取期数元数据 ---")
+    response = requests.get(f"{BASE_URL}/api/round-meta?round={test_round}")
+    data = response.json()
+
+    print(f"期数: {data['meta']['round_name']}")
+    print(f"申请人数: {data['meta']['applicant_count']}")
+    print(f"指标数: {data['meta']['quota_count']}")
+
+    assert data["success"] == True
+    assert data["meta"]["applicant_count"] == 10000
+    assert data["meta"]["quota_count"] == 5
+
+    print("\n--- 验证期数统计 ---")
+    response = requests.get(f"{BASE_URL}/api/round-stats?round={test_round}")
+    data = response.json()
+
+    assert data["success"] == True
+    assert data["applicant_count"] == 10000
+    assert data["quota_count"] == 5
+    assert data["win_rate"]["one_in_n"] == 2000
+
+    print("✅ 中签率计算正确: 10000人申请，5个指标 = 1/2000")
+
+    print("\n--- 测试非法参数（申请人数小于指标数） ---")
+    response = requests.post(
+        f"{BASE_URL}/api/round-meta",
+        json={
+            "round_name": "非法测试",
+            "applicant_count": 3,
+            "quota_count": 10
+        }
+    )
+    data = response.json()
+
+    print(f"状态码: {response.status_code}")
+    print(f"错误信息: {data['message']}")
+
+    assert response.status_code == 400
+    assert data["success"] == False
+
+    print("✅ 非法参数被正确拒绝")
+
+    print("\n--- 清理测试期数 ---")
+    requests.delete(f"{BASE_URL}/api/rounds/{test_round}")
+    print("✅ 测试期数已清理")
+
+    print("✅ 测试通过 - 期数元数据管理正常")
+
+
 def test_webpage():
     """测试网页是否可访问"""
     print("\n" + "=" * 60)
-    print("测试15: 网页可访问性")
+    print("测试18: 网页可访问性")
     print("=" * 60)
 
     response = requests.get(BASE_URL)
 
     print(f"状态码: {response.status_code}")
     print(f"页面标题包含: {'车牌摇号结果查询' in response.text}")
+    print(f"历史中签率统计存在: {'历史中签率统计' in response.text}")
     print(f"期数选择器存在: {'lotteryRound' in response.text}")
+    print(f"round-stats API引用: {'round-stats' in response.text}")
 
     assert response.status_code == 200
     assert "车牌摇号结果查询" in response.text
+    assert "历史中签率统计" in response.text
     assert "lotteryRound" in response.text
+    assert "round-stats" in response.text
 
     print("✅ 测试通过 - 网页可正常访问")
 
@@ -571,11 +717,14 @@ if __name__ == "__main__":
         test_batch_import()
         test_stats()
         test_duplicate_flag()
+        test_round_stats()
+        test_round_stats_single()
+        test_round_meta_crud()
 
         print("\n" + "=" * 60)
         print("🎉 所有测试通过！")
         print("=" * 60)
-        print("\n📋 重复编码问题修复验证总结:")
+        print("\n📋 功能验证总结:")
         print("  ✅ 同一期内编码重复被正确拒绝（409错误）")
         print("  ✅ 不同期允许相同编码存在")
         print("  ✅ 跨期查询同一编码可返回多条记录")
@@ -584,6 +733,10 @@ if __name__ == "__main__":
         print("  ✅ 批量导入自动去重")
         print("  ✅ 跨期重复编码标记提示")
         print("  ✅ 数据迁移兼容旧格式")
+        print("  ✅ 历史中签率统计（全部期数 & 单期）")
+        print("  ✅ 期数元数据管理（申请人数/指标数/描述）")
+        print("  ✅ 非法参数校验")
+        print("  ✅ 前端双栏展示（查询 + 统计面板）")
 
     except requests.exceptions.ConnectionError:
         print("❌ 无法连接到服务器，请先运行: python app.py")
